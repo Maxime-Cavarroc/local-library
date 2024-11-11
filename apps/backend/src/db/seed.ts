@@ -1,28 +1,34 @@
-import { db } from './index';
-import { users } from './schema';
-import { eq } from 'drizzle-orm';
-import { getUserByEmail } from './users'
+import { UserService } from './services/users'; // Importing UserService for reuse
 import bcrypt from 'bcrypt';
 
 export async function seedAdmin() {
-  const email = 'admin@example.com';
-  const password = 'Password123#';
+  const email = process.env.ADMIN_EMAIL || 'admin@example.com';
+  const password = process.env.ADMIN_PASSWORD || 'Password123#';
 
-  // Check if the admin user exists
-  const adminExists = getUserByEmail(email).all()
-  if (adminExists.length > 0) {
-    console.log('Admin user already exists.');
-    return;
+  try {
+    // Check if the admin user exists
+    const adminExists = UserService.getUserByEmail(email);
+
+    if (adminExists) {
+      console.log('Admin user already exists.');
+      return;
+    }
+
+    // Create the admin user
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const adminUser = {
+      email,
+      password: hashedPassword,
+      role: 'administrator',
+      isActive: 1,
+      refreshToken: null,
+    };
+
+    await UserService.insertUser(adminUser);
+
+    console.log('Admin user seeded successfully.');
+  } catch (error) {
+    console.error('Error seeding admin user:', error);
   }
-
-  // Create the admin user
-  const hashedPassword = await bcrypt.hash(password, 10);
-  db.insert(users).values({
-    email,
-    password: hashedPassword,
-    role: 'admin',
-    isActive: 1,
-  }).run();
-
-  console.log('Admin user seeded successfully.');
 }

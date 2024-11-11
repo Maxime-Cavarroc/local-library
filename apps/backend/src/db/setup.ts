@@ -1,9 +1,14 @@
 import { db } from './index';
 import { users } from './schema';
 
-export function setupDatabase() {
-  // Sync the schema
-  db.run(users.getSQL());
+export async function setupDatabase() {
+  try {
+    // Sync the schema
+    const sqlStatements = users.getSQL();
+    db.run(sqlStatements);
 
-  console.log('Database setup complete.');
+    console.log('Database setup complete.');
+  } catch (error) {
+    console.error('Error during database setup:', error);
+  }
 }
