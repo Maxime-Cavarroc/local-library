@@ -1,14 +1,13 @@
 import dotenv from 'dotenv';
-
-// Load .env variables globally
 dotenv.config();
 
 import fastify, { FastifyInstance } from 'fastify';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import corsPlugin from './plugins/cors'; // CORS plugin
-import { setupDatabase } from './db/setup'; // Database setup
-import { seedAdmin } from './db/seed'; // Seed admin user
+import corsPlugin from './plugins/cors';
+import { setupDatabase } from './db/setup';
+import { seedAdmin } from './db/seed';
+import authRoutes from './routes/authentication/authenticationRoute';
 
 async function startServer() {
   const app: FastifyInstance = fastify();
@@ -16,7 +15,7 @@ async function startServer() {
   try {
     // Initialize the database and seed admin user
     console.log('Setting up the database...');
-    await setupDatabase(); // Ensure database setup completes before proceeding
+    await setupDatabase();
     console.log('Seeding admin user...');
     await seedAdmin();
 
@@ -25,7 +24,7 @@ async function startServer() {
     // Register CORS plugin
     app.register(corsPlugin);
 
-    // Swagger configuration
+    // Register Swagger plugins
     app.register(swagger, {
       swagger: {
         info: {
@@ -34,13 +33,12 @@ async function startServer() {
           version: '1.0.0',
         },
         securityDefinitions: {
-          bearerAuth: {
+          Bearer: {
             type: 'apiKey',
             name: 'Authorization',
             in: 'header',
           },
         },
-        host: `localhost:${process.env.PORT || 3000}`,
         schemes: ['http'],
         consumes: ['application/json'],
         produces: ['application/json'],
@@ -48,8 +46,15 @@ async function startServer() {
     });
 
     app.register(swaggerUi, {
-      routePrefix: '/docs', // Swagger UI available at http://localhost:<PORT>/docs
+      routePrefix: '/docs',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: false,
+      },
     });
+
+    // Register routes
+    app.register(authRoutes, { prefix: '/api' });
 
     // Base route
     app.get('/', async () => {
@@ -58,14 +63,9 @@ async function startServer() {
 
     // Start the server
     const port = Number(process.env.PORT) || 3000;
-    app.listen({ port }, (err, address) => {
-      if (err) {
-        console.error('Error starting server:', err);
-        process.exit(1);
-      }
-      console.log(`Server is running at ${address}`);
-      console.log(`Swagger documentation is available at ${address}/docs`);
-    });
+    const address = await app.listen({ port });
+    console.log(`Server is running at ${address}`);
+    console.log(`Swagger documentation is available at ${address}/docs`);
   } catch (error) {
     console.error('Error during server startup:', error);
     process.exit(1);

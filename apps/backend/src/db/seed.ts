@@ -7,7 +7,7 @@ export async function seedAdmin() {
 
   try {
     // Check if the admin user exists
-    const adminExists = UserService.getUserByEmail(email);
+    const adminExists = await UserService.getUserByEmail(email);
 
     if (adminExists) {
       console.log('Admin user already exists.');

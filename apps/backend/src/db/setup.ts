@@ -1,12 +1,13 @@
 import { db } from './index';
-import { users } from './schema';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import path from 'path';
+
 
 export async function setupDatabase() {
   try {
-    // Sync the schema
-    const sqlStatements = users.getSQL();
-    db.run(sqlStatements);
-
+    await migrate(db, {
+      migrationsFolder: path.resolve(__dirname, './migrations'),
+    });
     console.log('Database setup complete.');
   } catch (error) {
     console.error('Error during database setup:', error);
