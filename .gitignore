@@ -1,4 +1,6 @@
 node_modules
 # Environment variables file
 .env
-
+local-library.db
+.db
+apps/backend/local-library

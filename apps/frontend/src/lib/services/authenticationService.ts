@@ -23,7 +23,7 @@ export const AuthenticationService = {
     },
 
     async login(data: LoginRequest): Promise<AuthResponse> {
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        const response = await fetch(`${API_BASE_URL}/auth/signin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -56,4 +56,9 @@ export async function handleLogin(email: string, password: string): Promise<void
     const loginData: LoginRequest = { email, password };
     const { token } = await AuthenticationService.login(loginData);
     await setAuthentication(token);
+}
+
+export async function handleSignup(email: string, password: string, passwordConfirmation: string): Promise<void> {
+    const signupData: SignupRequest = { email, password, passwordConfirmation };
+    await AuthenticationService.signup(signupData);
 }

@@ -3,15 +3,15 @@ import bcrypt from 'bcrypt';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { UserService } from '../../db/services/users';
 import { SignupRequest } from '../../data/request/authentication/signupRequest';
-import { LoginRequest } from '../../data/request/authentication/loginRequest';
+import { SigninRequest } from '../../data/request/authentication/signinRequest';
 
-export default async function authRoutes(app: FastifyInstance) {
+export default async function authenticationRoutes(app: FastifyInstance) {
   const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
   const JWT_EXPIRY = process.env.JWT_EXPIRY || '1h';
 
   // Password validation function
   const validatePassword = (password: string): boolean => {
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{12,}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{12,}$/;
     return passwordRegex.test(password);
   };
 
@@ -26,22 +26,23 @@ export default async function authRoutes(app: FastifyInstance) {
         description: 'User signup',
         body: {
           type: 'object',
-          required: ['email', 'password'],
+          required: ['email', 'password', 'passwordConfirmation'],
           properties: {
             email: { type: 'string', format: 'email' },
             password: { type: 'string' },
+            passwordConfirmation: { type: 'string' }
           },
         },
         response: {
           201: {
-            description: 'User created successfully',
+            description: 'Signup successful',
             type: 'object',
             properties: {
               id: { type: 'number' },
               email: { type: 'string' },
             },
           },
-          400: {
+          401: {
             description: 'Bad request',
             type: 'object',
             properties: {
@@ -52,20 +53,28 @@ export default async function authRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const { email, password } = request.body;
+      const { email, password, passwordConfirmation } = request.body;
 
       // Validate password strength
       if (!validatePassword(password)) {
-        return reply.status(400).send({
+        return reply.status(401).send({
           error:
-            'Password must be at least 12 characters long and include at least one uppercase letter, one number, and one special character.',
+            'Password must be at least 12 characters long and include at least one uppercase letter, one number, and one special character',
+        });
+      }
+
+      // Validate password confirmation
+      if (password !== passwordConfirmation) {
+        return reply.status(401).send({
+          error:
+            'Password must be the same as password confirmation',
         });
       }
 
       // Check if user already exists
       const existingUser = await UserService.getUserByEmail(email);
       if (existingUser) {
-        return reply.status(400).send({ error: 'Email already in use' });
+        return reply.status(401).send({ error: 'Email already in use' });
       }
 
       // Hash the password
@@ -82,14 +91,14 @@ export default async function authRoutes(app: FastifyInstance) {
   );
 
   /**
-   * User Login
+   * User Signin
    */
-  app.post<{ Body: LoginRequest }>(
-    '/auth/login',
+  app.post<{ Body: SigninRequest }>(
+    '/auth/signin',
     {
       schema: {
         tags: ['Authentication'],
-        description: 'User login',
+        description: 'User signin',
         body: {
           type: 'object',
           required: ['email', 'password'],
@@ -100,7 +109,7 @@ export default async function authRoutes(app: FastifyInstance) {
         },
         response: {
           200: {
-            description: 'Login successful',
+            description: 'Signin successful',
             type: 'object',
             properties: {
               token: { type: 'string' },
@@ -122,13 +131,13 @@ export default async function authRoutes(app: FastifyInstance) {
       // Find user in the database
       const user = await UserService.getUserByEmail(email);
       if (!user) {
-        return reply.status(401).send({ error: 'Invalid email or password' });
+        return reply.status(401).send({ error: 'Invalid email or password.' });
       }
 
       // Compare password
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        return reply.status(401).send({ error: 'Invalid email or password' });
+        return reply.status(401).send({ error: 'Invalid email or password.' });
       }
 
       // Generate JWT

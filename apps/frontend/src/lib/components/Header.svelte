@@ -13,12 +13,9 @@
 	}
 
 	function closeProfileMenu() {
-		isProfileMenuOpen = false;
-	}
-
-	function handleLogout(): void {
-		logout();
-		window.location.href = '/auth/login';
+		setTimeout(() => {
+			isProfileMenuOpen = false;
+		}, 150);
 	}
 </script>
 
@@ -99,12 +96,12 @@
 									id="user-menu-item-1">Settings</a
 								>
 								<a
-									href="#"
+									href="/"
 									class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
 									role="menuitem"
 									tabindex="-1"
 									id="user-menu-item-2"
-									on:click|preventDefault={handleLogout}>Sign out</a
+									on:click={logout}>Sign out</a
 								>
 							</div>
 						{/if}
@@ -201,9 +198,9 @@
 						>Settings</a
 					>
 					<a
-						href="#"
+						href="/"
 						class="block rounded-md px-3 py-2 text-base font-medium text-gray-400 hover:bg-gray-700 hover:text-white"
-						on:click|preventDefault={handleLogout}
+						on:click={logout}
 						>Sign out</a
 					>
 				</div>

@@ -4,7 +4,7 @@
 
     onMount(() => {
         if (!localStorage.getItem('authToken')) {
-            window.location.href = '/auth/login';
+            window.location.href = '/auth/signin';
         }
     });
 </script>

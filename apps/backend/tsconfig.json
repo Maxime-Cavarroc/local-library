@@ -9,7 +9,7 @@
     "esModuleInterop": true,           // Allows default imports from modules with no default export
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "types": ["node"],                 // Include Node.js types
+    "types": ["node", "jest"],                 // Include Node.js types
     "allowSyntheticDefaultImports": true
   },
   "include": ["./**/*.ts"],            // Include all TypeScript files in the project

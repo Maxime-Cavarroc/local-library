@@ -1,11 +1,5 @@
 <script lang="ts">
-	import { currentUser, logout } from '../../../lib/stores/authentication';
 	import Secured from '../../../lib/components/Secured.svelte';
-
-	function handleLogout(): void {
-		logout();
-		window.location.href = '/auth/login';
-	}
 </script>
 
 <Secured>

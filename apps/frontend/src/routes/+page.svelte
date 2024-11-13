@@ -2,6 +2,6 @@
 	import { onMount } from 'svelte';
 
     onMount(() => {
-        window.location.href = '/auth/login';
+        window.location.href = '/auth/signin';
     });
 </script>

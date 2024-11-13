@@ -7,7 +7,8 @@ import swaggerUi from '@fastify/swagger-ui';
 import corsPlugin from './plugins/cors';
 import { setupDatabase } from './db/setup';
 import { seedAdmin } from './db/seed';
-import authRoutes from './routes/authentication/authenticationRoute';
+import authenticationRoutes from './routes/authentication/authentication';
+import epubRoutes from './routes/books/epubs';
 
 async function startServer() {
   const app: FastifyInstance = fastify();
@@ -54,7 +55,8 @@ async function startServer() {
     });
 
     // Register routes
-    app.register(authRoutes, { prefix: '/api' });
+    app.register(authenticationRoutes, { prefix: '/api' });
+    app.register(epubRoutes, { prefix: '/api' });
 
     // Base route
     app.get('/', async () => {
