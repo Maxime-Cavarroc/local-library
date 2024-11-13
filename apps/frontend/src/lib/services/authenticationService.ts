@@ -4,7 +4,7 @@ import type { User } from '../types/authentication/user';
 import type { AuthResponse } from '../types/authentication/authenticationResponse';
 import { setAuthentication } from '$lib/stores/authentication';
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = 'http://localhost:3000/api';
 
 export const AuthenticationService = {
     async signup(data: SignupRequest): Promise<{ id: string; email: string }> {
@@ -56,5 +56,4 @@ export async function handleLogin(email: string, password: string): Promise<void
     const loginData: LoginRequest = { email, password };
     const { token } = await AuthenticationService.login(loginData);
     await setAuthentication(token);
-    window.location.href = '/dashboard';
 }

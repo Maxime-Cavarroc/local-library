@@ -1,19 +1,13 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { authToken } from '../../lib/stores/authentication';
-    
-    let isAuthenticated = false;
-
-    // Check authentication status
-    $: authToken.subscribe((token) => {
-        isAuthenticated = !!token;
-    });
+    import Header from '$lib/components/Header.svelte';
 
     onMount(() => {
-        if (!isAuthenticated) {
-            window.location.href = '/login'; // Redirect to login if not authenticated
+        if (!localStorage.getItem('authToken')) {
+            window.location.href = '/auth/login';
         }
     });
 </script>
 
+<Header/>
 <slot />

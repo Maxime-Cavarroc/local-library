@@ -8,6 +8,7 @@ export const currentUser: Writable<User | null> = writable(null);
 
 export async function setAuthentication(token: string): Promise<void> {
     authToken.set(token);
+    localStorage.setItem('authToken', token);
 
     try {
         const user = await AuthenticationService.getCurrentUser(token);
@@ -24,13 +25,20 @@ export function logout(): void {
     localStorage.removeItem('authToken');
 }
 
+function isTokenExpired(token: string): boolean {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+}
+
 export async function loadAuthenticationState(): Promise<void> {
     const token = localStorage.getItem('authToken');
-    if (token) {
+    if (token && !isTokenExpired(token)) {
         try {
             await setAuthentication(token);
         } catch {
-            logout(); // Clear invalid token
+            logout();
         }
+    } else {
+        logout();
     }
 }
