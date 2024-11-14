@@ -52,6 +52,10 @@ export const AuthenticationService = {
     },
 };
 
+export async function getAuthToken(): Promise<string | null> {
+    return localStorage.getItem('authToken');
+}
+
 export async function handleLogin(email: string, password: string): Promise<void> {
     const loginData: LoginRequest = { email, password };
     const { token } = await AuthenticationService.login(loginData);
