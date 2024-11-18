@@ -1,20 +1,35 @@
+// EpubService.ts
+import type { Book } from "$lib/types/book/book";
+import type { PaginatedBooks } from "$lib/types/book/paginatedBook";
 import { getAuthToken } from "./authenticationService";
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
 export const EpubService = {
     /**
-     * Get all EPUB covers
+     * Get paginated and sorted EPUB covers and full book details
+     * @param page - The page number (1-based index)
+     * @param limit - The number of items per page
+     * @param sort - The field to sort by ('title', 'author', 'date', 'publisher', 'language')
+     * @param order - The order of sorting ('asc' or 'desc')
      */
-    async getCovers(): Promise<Array<{ fileName: string, title: string; cover: string }>> {
-        const response = await fetch(`${API_BASE_URL}/epubs/covers`, {
+    async getPaginatedEpubs(
+        page: number = 1,
+        limit: number = 10,
+        sort: 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language' = 'fileName',
+        order: 'asc' | 'desc' = 'asc'
+    ): Promise<PaginatedBooks> {
+        const response = await fetch(`${API_BASE_URL}/epubs?page=${page}&limit=${limit}&sort=${sort}&order=${order}`, {
             method: 'GET',
-            headers: { Authorization: `Bearer ${await getAuthToken()}` },
+            headers: { 
+                Authorization: `Bearer ${await getAuthToken()}`,
+                'Content-Type': 'application/json'
+            },
         });
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Failed to fetch EPUB covers');
+            throw new Error(error.error || 'Failed to fetch EPUBs');
         }
 
         return response.json();
@@ -24,10 +39,13 @@ export const EpubService = {
      * Get details of a specific EPUB by title
      * @param title - The title of the EPUB book
      */
-    async getBookByTitle(title: string): Promise<{ title: string; author: string; description: string; cover: string | null }> {
+    async getBookByTitle(title: string): Promise<Book> {
         const response = await fetch(`${API_BASE_URL}/epubs/${encodeURIComponent(title)}`, {
             method: 'GET',
-            headers: { Authorization: `Bearer ${await getAuthToken()}` },
+            headers: { 
+                Authorization: `Bearer ${await getAuthToken()}`,
+                'Content-Type': 'application/json'
+            },
         });
 
         if (!response.ok) {

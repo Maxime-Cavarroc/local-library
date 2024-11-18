@@ -1,32 +1,69 @@
-import { FastifyInstance } from 'fastify';
-import fs from 'fs';
+import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import path from 'path';
-import EPub from 'epub';
+import { findEpubByTitle, getAllEpubFiles, parseEpub, sortBooks } from '../../utils/epubUtils';
+import { Book } from '../../types/book';
+import { GetEpubsQuery, PaginatedBooks } from '../../types/pagination/paginatedBook';
 
 export default async function epubRoutes(app: FastifyInstance) {
-    const EPUB_DIR = path.join(__dirname, '../../../../../../epubs'); // Adjust directory path as needed
+    const EPUB_DIR = path.join(__dirname, '../../../../../../epubs');
 
     /**
-     * Serve EPUB Covers (Authenticated)
+     * Serve EPUB Covers and Full Book Items with Pagination and Sorting (Authenticated)
      */
-    app.get(
-        '/epubs/covers',
+    app.get<{
+        Querystring: GetEpubsQuery;
+    }>(
+        '/epubs',
         {
-            preHandler: app.authenticate, // Authentication middleware
+            preHandler: app.authenticate,
             schema: {
                 tags: ['EPUB'],
-                description: 'Get covers of all EPUB files in the directory (Authenticated)',
+                description: 'Get covers and details of all EPUB files in the directory with pagination and sorting (Authenticated)',
                 security: [{ Bearer: [] }],
+                querystring: {
+                    type: 'object',
+                    properties: {
+                        page: { type: 'integer', minimum: 1, default: 1 },
+                        limit: { type: 'integer', minimum: 1, maximum: 100, default: 12 },
+                        sort: { 
+                            type: 'string', 
+                            enum: ['fileName', 'title', 'author', 'date', 'publisher', 'language'], 
+                            default: 'title' 
+                        },
+                        order: { 
+                            type: 'string', 
+                            enum: ['asc', 'desc'], 
+                            default: 'asc' 
+                        },
+                    },
+                    additionalProperties: false,
+                },
                 response: {
                     200: {
-                        description: 'Covers fetched successfully',
-                        type: 'array',
-                        items: {
-                            type: 'object',
-                            properties: {
-                                fileName: { type: 'string' },
-                                title: { type: 'string' },
-                                cover: { type: ['string', 'null'] }, // Base64 Data URL or null
+                        description: 'Paginated and sorted covers and details fetched successfully',
+                        type: 'object',
+                        properties: {
+                            totalItems: { type: 'integer' },
+                            totalPages: { type: 'integer' },
+                            currentPage: { type: 'integer' },
+                            pageSize: { type: 'integer' },
+                            books: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        fileName: { type: 'string' },
+                                        title: { type: 'string' },
+                                        author: { type: 'string' },
+                                        description: { type: 'string' },
+                                        cover: { type: ['string', 'null'] }, // Base64 Data URL or null
+                                        date: { type: ['string', 'null'] },
+                                        publisher: { type: ['string', 'null'] },
+                                        language: { type: ['string', 'null'] },
+                                        tag: { type: ['string', 'null'] },
+                                        downloadUrl: { type: 'string' },
+                                    },
+                                },
                             },
                         },
                     },
@@ -47,110 +84,45 @@ export default async function epubRoutes(app: FastifyInstance) {
                 },
             },
         },
-        async (request, reply) => {
+        async (request: FastifyRequest<{ Querystring: GetEpubsQuery }>, reply: FastifyReply) => {
             try {
-                // Read all EPUB files in the directory
-                const epubFiles = fs
-                    .readdirSync(EPUB_DIR)
-                    .filter(file => file.endsWith('.epub'));
+                const { page = 1, limit = 10, sort = 'fileName', order = 'asc' } = request.query;
 
-                const covers = [];
+                // Validate and sanitize pagination parameters
+                const currentPage = Math.max(1, page);
+                const pageSize = Math.min(Math.max(1, limit), 100); // Limit pageSize to a maximum of 100
 
-                for (const file of epubFiles) {
-                    const filePath = path.join(EPUB_DIR, file);
-                    const epub = new EPub(filePath);
+                const epubFiles = await getAllEpubFiles();
+                const totalItems = epubFiles.length;
+                const totalPages = Math.ceil(totalItems / pageSize);
+                const offset = (currentPage - 1) * pageSize;
+                const paginatedFiles = epubFiles.slice(offset, offset + pageSize);
 
-                    // Wrap events in a Promise to use async/await
-                    await new Promise<void>((resolve, reject) => {
-                        epub.on('end', resolve);
-                        epub.on('error', reject);
-                        epub.parse();
-                    });
+                const parsePromises = paginatedFiles.map((filePath) => parseEpub(filePath));
+                let books: Book[] = await Promise.all(parsePromises);
 
-                    const fileName = path.basename(file, '.epub');
-                    const title = epub.metadata.title || path.basename(file, '.epub');
-                    let cover: string | null = null;
+                // Apply sorting
+                books = sortBooks(books, sort, order);
 
-                    let coverItems: any[] = [];
+                const paginatedResponse: PaginatedBooks = {
+                    totalItems,
+                    totalPages,
+                    currentPage,
+                    pageSize,
+                    books,
+                };
 
-                    if (epub.metadata.cover) {
-                        coverItems = Object.values(epub.manifest).filter(item =>
-                            item.id == epub.metadata.cover
-                        );
-                    }
-
-                    if (coverItems.length != 1) {
-                        // Filter for image items
-                        coverItems = Object.values(epub.manifest).filter(item =>
-                            item['media-type'].startsWith('image/') &&
-                            item.properties === 'cover-image'
-                        );
-                    }
-
-                    if (coverItems.length != 1) {
-                        coverItems = Object.values(epub.manifest).filter(item =>
-                            item['media-type'].startsWith('image/') &&
-                            !item.id.toLowerCase().includes('x40k') &&
-                            !item.id.toLowerCase().includes('title') &&
-                            !item.id.toLowerCase().includes('icon') &&
-                            !item.id.toLowerCase().includes('extract') &&
-                            !item.id.toLowerCase().includes('part') &&
-                            !item.id.toLowerCase().includes('map') &&
-                            !item.id.toLowerCase().includes('-fr-') &&
-                            item.id.toLowerCase().includes('cover')
-                        );
-                    }
-
-                    if (coverItems.length == 0) {
-                        coverItems = Object.values(epub.manifest).filter(item =>
-                            item['media-type'].startsWith('image/') &&
-                            !item.id.toLowerCase().includes('x40k') &&
-                            !item.id.toLowerCase().includes('title') &&
-                            !item.id.toLowerCase().includes('icon') &&
-                            !item.id.toLowerCase().includes('extract') &&
-                            !item.id.toLowerCase().includes('part') &&
-                            !item.id.toLowerCase().includes('map') &&
-                            !item.id.toLowerCase().includes('-fr-')
-                        );
-                    }
-
-
-                    if (coverItems.length > 0) {
-                        const longestCoverItem = coverItems.reduce((longest, current) => {
-                            return current.id.length > longest.id.length ? current : longest;
-                        }, coverItems[0]);
-
-                        cover = await new Promise<string | null>((resolve, reject) => {
-                            epub.getImage(longestCoverItem.id, (err, data, mimeType) => {
-                                if (err) {
-                                    app.log.warn(`Failed to get cover image for ${file}: ${err.message}`);
-                                    resolve(null);
-                                } else {
-                                    const coverBase64 = data.toString('base64');
-                                    const coverDataUrl = `data:${mimeType};base64,${coverBase64}`;
-                                    resolve(coverDataUrl);
-                                }
-                            });
-                        });
-                    } else {
-                        app.log.warn(`No cover image found for ${file}`);
-                    }
-
-                    covers.push({ fileName, title, cover });
-                }
-
-                return reply.send(covers);
+                return reply.send(paginatedResponse);
             } catch (error) {
                 app.log.error(error);
-                console.log(error)
                 return reply.status(500).send({ error: 'Failed to process EPUB files' });
             }
         }
     );
 
     /**
- * Get a specific EPUB book by title (Authenticated)
- */
+     * Get a specific EPUB book by title (Authenticated)
+     */
     app.get(
         '/epubs/:title',
         {
@@ -171,10 +143,15 @@ export default async function epubRoutes(app: FastifyInstance) {
                         description: 'Book details fetched successfully',
                         type: 'object',
                         properties: {
+                            fileName: { type: 'string' },
                             title: { type: 'string' },
                             author: { type: 'string' },
                             description: { type: 'string' },
                             cover: { type: ['string', 'null'] }, // Base64 Data URL or null
+                            date: { type: ['string', 'null'] },
+                            publisher: { type: ['string', 'null'] },
+                            language: { type: ['string', 'null'] },
+                            tag: { type: ['string', 'null'] },
                         },
                     },
                     404: {
@@ -203,103 +180,17 @@ export default async function epubRoutes(app: FastifyInstance) {
         },
         async (request, reply) => {
             const { title } = request.params as { title: string };
-            const sanitizedTitle = title.toLowerCase(); // Ensure case-insensitive matching
 
             try {
-                const epubFiles = fs
-                    .readdirSync(EPUB_DIR)
-                    .filter(file => file.endsWith('.epub'));
-
-                const matchedFile = epubFiles.find(file =>
-                    path.basename(file, '.epub').toLowerCase() === sanitizedTitle
-                );
+                const matchedFile = await findEpubByTitle(title);
 
                 if (!matchedFile) {
                     return reply.status(404).send({ error: 'Book not found' });
                 }
 
-                const filePath = path.join(EPUB_DIR, matchedFile);
-                const epub = new EPub(filePath);
+                const book: Book = await parseEpub(matchedFile);
 
-                await new Promise<void>((resolve, reject) => {
-                    epub.on('end', resolve);
-                    epub.on('error', reject);
-                    epub.parse();
-                });
-
-                const metadata = {
-                    title: epub.metadata.title || path.basename(matchedFile, '.epub'),
-                    author: epub.metadata.creator || 'Unknown Author',
-                    description: epub.metadata.description || 'No description available',
-                };
-
-                let cover: string | null = null;
-
-                let coverItems: any[] = [];
-
-                if (epub.metadata.cover) {
-                    coverItems = Object.values(epub.manifest).filter(item =>
-                        item.id == epub.metadata.cover
-                    );
-                }
-
-                if (coverItems.length != 1) {
-                    // Filter for image items
-                    coverItems = Object.values(epub.manifest).filter(item =>
-                        item['media-type'].startsWith('image/') &&
-                        item.properties === 'cover-image'
-                    );
-                }
-
-                if (coverItems.length != 1) {
-                    coverItems = Object.values(epub.manifest).filter(item =>
-                        item['media-type'].startsWith('image/') &&
-                        !item.id.toLowerCase().includes('x40k') &&
-                        !item.id.toLowerCase().includes('title') &&
-                        !item.id.toLowerCase().includes('icon') &&
-                        !item.id.toLowerCase().includes('extract') &&
-                        !item.id.toLowerCase().includes('part') &&
-                        !item.id.toLowerCase().includes('map') &&
-                        !item.id.toLowerCase().includes('-fr-') &&
-                        item.id.toLowerCase().includes('cover')
-                    );
-                }
-
-                if (coverItems.length == 0) {
-                    coverItems = Object.values(epub.manifest).filter(item =>
-                        item['media-type'].startsWith('image/') &&
-                        !item.id.toLowerCase().includes('x40k') &&
-                        !item.id.toLowerCase().includes('title') &&
-                        !item.id.toLowerCase().includes('icon') &&
-                        !item.id.toLowerCase().includes('extract') &&
-                        !item.id.toLowerCase().includes('part') &&
-                        !item.id.toLowerCase().includes('map') &&
-                        !item.id.toLowerCase().includes('-fr-')
-                    );
-                }
-
-                if (coverItems.length > 0) {
-                    const longestCoverItem = coverItems.reduce((longest, current) => {
-                        return current.id.length > longest.id.length ? current : longest;
-                    }, coverItems[0]);
-
-                    cover = await new Promise<string | null>((resolve, reject) => {
-                        epub.getImage(longestCoverItem.id, (err, data, mimeType) => {
-                            if (err) {
-                                app.log.warn(`Failed to get cover image for ${matchedFile}: ${err.message}`);
-                                resolve(null);
-                            } else {
-                                const coverBase64 = data.toString('base64');
-                                const coverDataUrl = `data:${mimeType};base64,${coverBase64}`;
-                                resolve(coverDataUrl);
-                            }
-                        });
-                    });
-                } else {
-                    app.log.warn(`No cover image found for ${matchedFile}`);
-                }
-
-                return reply.send({ ...metadata, cover });
+                return reply.send(book);
             } catch (error) {
                 app.log.error(error);
                 return reply.status(500).send({ error: 'Failed to fetch book details' });
@@ -308,8 +199,8 @@ export default async function epubRoutes(app: FastifyInstance) {
     );
 
     /**
-   * Download a specific EPUB file by title (Authenticated)
-   */
+     * Download a specific EPUB file by title (Authenticated)
+     */
     app.get(
         '/epubs/:title/download',
         {
@@ -357,34 +248,17 @@ export default async function epubRoutes(app: FastifyInstance) {
         },
         async (request, reply) => {
             const { title } = request.params as { title: string };
-            const sanitizedTitle = title.toLowerCase();
 
             try {
-                const epubFiles = fs
-                    .readdirSync(EPUB_DIR)
-                    .filter((file) => file.endsWith('.epub'));
-
-                const matchedFile = epubFiles.find(
-                    (file) =>
-                        path.basename(file, '.epub').toLowerCase() === sanitizedTitle
-                );
+                const matchedFile = await findEpubByTitle(title);
 
                 if (!matchedFile) {
                     return reply.status(404).send({ error: 'Book not found' });
                 }
 
-                const filePath = path.join(EPUB_DIR, matchedFile);
-
-                // Check if the file exists
-                if (!fs.existsSync(filePath)) {
-                    return reply.status(404).send({ error: 'File not found' });
-                }
-
-                // Use sendFile to handle the download
-                return reply.sendFile(matchedFile, EPUB_DIR, {
-                    // Optional: Customize headers if needed
-                    // 'Content-Disposition' is handled by sendFile by default
-                });
+                // Use Fastify's built-in `sendFile` method to handle the file download
+                // Ensure that the `fastify-static` plugin is registered in your server setup
+                return reply.sendFile(path.basename(matchedFile), EPUB_DIR);
             } catch (error) {
                 app.log.error(error);
                 return reply.status(500).send({ error: 'Failed to download the book' });

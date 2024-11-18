@@ -1,12 +1,20 @@
 <script lang="ts">
 	import { logout } from '$lib/stores/authentication';
+	import { page } from '$app/stores';
+	import { onDestroy } from 'svelte';
 
 	let isMobileMenuOpen = false;
 	let isProfileMenuOpen = false;
+	let currentPath = '';
+
+	// Subscribe to the page store to get the current path
+	const unsubscribe = page.subscribe(($page) => {
+		currentPath = $page.url.pathname;
+	});
 
 	function toggleMobileMenu() {
 		isMobileMenuOpen = !isMobileMenuOpen;
-	};
+	}
 
 	function openProfileMenu() {
 		isProfileMenuOpen = true;
@@ -17,6 +25,14 @@
 			isProfileMenuOpen = false;
 		}, 150);
 	}
+
+	onDestroy(() => {
+		unsubscribe();
+	});
+
+	function isActive(path: string): boolean {
+		return currentPath === path;
+	}
 </script>
 
 <nav class="bg-gray-800">
@@ -24,22 +40,33 @@
 		<div class="flex h-16 items-center justify-between">
 			<div class="flex items-center">
 				<div class="shrink-0">
-					<i class="fa-solid fa-book fa-2xl text-gray-300 hover:bg-gray-700 hover:text-white"></i>
+					<a href="/secured/dashboard" aria-label="Go to Homepage">
+						<i class="fa-solid fa-book fa-2xl text-gray-300 hover:bg-gray-700 hover:text-white"></i>
+					</a>
 				</div>
 				<div class="hidden md:block">
 					<div class="ml-10 flex items-baseline space-x-4">
 						<a
 							href="/secured/dashboard"
-							class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white"
-							aria-current="page"
+							class={`rounded-md px-3 py-2 text-sm font-medium ${
+								isActive('/secured/dashboard')
+									? 'bg-gray-900 text-white'
+									: 'text-gray-300 hover:bg-gray-700 hover:text-white'
+							}`}
+							aria-current={isActive('/secured/dashboard') ? 'page' : undefined}
 						>
 							Dashboard
 						</a>
 						<a
-							href="#"
-							class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+							href="/secured/books"
+							class={`rounded-md px-3 py-2 text-sm font-medium ${
+								isActive('/secured/books')
+									? 'bg-gray-900 text-white'
+									: 'text-gray-300 hover:bg-gray-700 hover:text-white'
+							}`}
+							aria-current={isActive('/secured/books') ? 'page' : undefined}
 						>
-							Team
+							Books
 						</a>
 					</div>
 				</div>
@@ -65,7 +92,7 @@
 								aria-expanded="false"
 								aria-haspopup="true"
 								on:focus={openProfileMenu}
-    							on:blur={closeProfileMenu}
+								on:blur={closeProfileMenu}
 							>
 								<span class="absolute -inset-1.5"></span>
 								<span class="sr-only">Open user menu</span>
@@ -138,14 +165,23 @@
 				<!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
 				<a
 					href="/secured/dashboard"
-					class="block rounded-md bg-gray-900 px-3 py-2 text-base font-medium text-white"
-					aria-current="page"
+					class={`block rounded-md px-3 py-2 text-base font-medium ${
+						isActive('/secured/dashboard')
+							? 'bg-gray-900 text-white'
+							: 'text-gray-300 hover:bg-gray-700 hover:text-white'
+					}`}
+					aria-current={isActive('/secured/dashboard') ? 'page' : undefined}
 				>
 					Dashboard
 				</a>
 				<a
-					href="#"
-					class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white"
+					href="/secured/books"
+					class={`block rounded-md px-3 py-2 text-base font-medium ${
+						isActive('/secured/books')
+							? 'bg-gray-900 text-white'
+							: 'text-gray-300 hover:bg-gray-700 hover:text-white'
+					}`}
+					aria-current={isActive('/secured/books') ? 'page' : undefined}
 				>
 					Books
 				</a>
@@ -200,8 +236,7 @@
 					<a
 						href="/"
 						class="block rounded-md px-3 py-2 text-base font-medium text-gray-400 hover:bg-gray-700 hover:text-white"
-						on:click={logout}
-						>Sign out</a
+						on:click={logout}>Sign out</a
 					>
 				</div>
 			</div>
