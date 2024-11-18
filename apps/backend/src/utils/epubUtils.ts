@@ -26,7 +26,7 @@ export async function parseEpub(filePath: string): Promise<Book> {
                 const author = epub.metadata.creator || 'Unknown Author';
                 const description = epub.metadata.description || 'No description available';
                 const date = epub.metadata.date || null;
-                const publisher = epub.metadata.publisher || null;
+                const publisher = epub.metadata.publisher || 'No publisher available';
                 const language = epub.metadata.language || null;
                 const tag = epub.metadata.subject || null;
                 const cover = await extractCover(epub);

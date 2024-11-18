@@ -7,19 +7,32 @@ const API_BASE_URL = 'http://localhost:3000/api';
 
 export const EpubService = {
     /**
-     * Get paginated and sorted EPUB covers and full book details
+     * Get paginated, sorted, and searched EPUB covers and full book details
      * @param page - The page number (1-based index)
      * @param limit - The number of items per page
      * @param sort - The field to sort by ('title', 'author', 'date', 'publisher', 'language')
      * @param order - The order of sorting ('asc' or 'desc')
+     * @param search - The search term to filter EPUBs
      */
     async getPaginatedEpubs(
         page: number = 1,
         limit: number = 10,
         sort: 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language' = 'fileName',
-        order: 'asc' | 'desc' = 'asc'
+        order: 'asc' | 'desc' = 'asc',
+        search: string = ''
     ): Promise<PaginatedBooks> {
-        const response = await fetch(`${API_BASE_URL}/epubs?page=${page}&limit=${limit}&sort=${sort}&order=${order}`, {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+            sort,
+            order,
+        });
+
+        if (search.trim() !== '') {
+            params.append('search', search.trim());
+        }
+
+        const response = await fetch(`${API_BASE_URL}/epubs?${params.toString()}`, {
             method: 'GET',
             headers: { 
                 Authorization: `Bearer ${await getAuthToken()}`,

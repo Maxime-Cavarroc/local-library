@@ -25,15 +25,19 @@ export default async function epubRoutes(app: FastifyInstance) {
                     properties: {
                         page: { type: 'integer', minimum: 1, default: 1 },
                         limit: { type: 'integer', minimum: 1, maximum: 100, default: 12 },
-                        sort: { 
-                            type: 'string', 
-                            enum: ['fileName', 'title', 'author', 'date', 'publisher', 'language'], 
-                            default: 'title' 
+                        sort: {
+                            type: 'string',
+                            enum: ['fileName', 'title', 'author', 'date', 'publisher', 'language'],
+                            default: 'title'
                         },
-                        order: { 
-                            type: 'string', 
-                            enum: ['asc', 'desc'], 
-                            default: 'asc' 
+                        order: {
+                            type: 'string',
+                            enum: ['asc', 'desc'],
+                            default: 'asc'
+                        },
+                        search: {
+                            type: 'string',
+                            description: 'Search term to filter EPUBs by fileName, title, author, or other metadata fields',
                         },
                     },
                     additionalProperties: false,
@@ -61,7 +65,6 @@ export default async function epubRoutes(app: FastifyInstance) {
                                         publisher: { type: ['string', 'null'] },
                                         language: { type: ['string', 'null'] },
                                         tag: { type: ['string', 'null'] },
-                                        downloadUrl: { type: 'string' },
                                     },
                                 },
                             },
@@ -86,13 +89,39 @@ export default async function epubRoutes(app: FastifyInstance) {
         },
         async (request: FastifyRequest<{ Querystring: GetEpubsQuery }>, reply: FastifyReply) => {
             try {
-                const { page = 1, limit = 10, sort = 'fileName', order = 'asc' } = request.query;
+                const { page = 1, limit = 10, sort = 'fileName', order = 'asc', search } = request.query;
 
                 // Validate and sanitize pagination parameters
                 const currentPage = Math.max(1, page);
                 const pageSize = Math.min(Math.max(1, limit), 100); // Limit pageSize to a maximum of 100
 
-                const epubFiles = await getAllEpubFiles();
+                let epubFiles = await getAllEpubFiles();
+
+                // Implement search functionality
+                if (search && search.trim() !== '') {
+                    const searchTerm = search.trim().toLowerCase();
+                    // Inside the route handler after extracting searchTerm
+                    const searchTerms = searchTerm.split(' ').filter(term => term !== '');
+
+                    if (searchTerms.length > 0) {
+                        const filteredFiles = await Promise.all(epubFiles.map(async (filePath) => {
+                            const book = await parseEpub(filePath);
+                            return searchTerms.every(term => (
+                                (book.fileName && book.fileName.toLowerCase().includes(term)) ||
+                                (book.title && book.title.toLowerCase().includes(term)) ||
+                                (book.author && book.author.toLowerCase().includes(term)) ||
+                                (book.description && book.description.toLowerCase().includes(term)) ||
+                                (book.publisher && book.publisher.toLowerCase().includes(term)) ||
+                                (book.language && book.language.toLowerCase().includes(term)) ||
+                                (book.tag && book.tag.toLowerCase().includes(term))
+                            )) ? filePath : null;
+                        }));
+
+                        epubFiles = filteredFiles.filter((filePath) => filePath !== null) as string[];
+                    }
+                }
+
+
                 const totalItems = epubFiles.length;
                 const totalPages = Math.ceil(totalItems / pageSize);
                 const offset = (currentPage - 1) * pageSize;

@@ -5,6 +5,7 @@ export interface GetEpubsQuery {
     limit?: number;
     sort?: 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language';
     order?: 'asc' | 'desc';
+    search?: string;
 }
 
 export interface PaginatedBooks {

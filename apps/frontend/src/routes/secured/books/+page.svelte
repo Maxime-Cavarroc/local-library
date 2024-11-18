@@ -1,160 +1,183 @@
 <!-- src/routes/secured/Books.svelte -->
 <script lang="ts">
-	import type { Book } from '$lib/types/book/book';
-	import { EpubService } from '$lib/services/epubService';
-	import type { PaginatedBooks } from '$lib/types/book/paginatedBook';
-	import Secured from '../../../lib/components/Secured.svelte';
-	import { onMount, onDestroy } from 'svelte';
+    import type { Book } from '$lib/types/book/book';
+    import { EpubService } from '$lib/services/epubService';
+    import type { PaginatedBooks } from '$lib/types/book/paginatedBook';
+    import Secured from '../../../lib/components/Secured.svelte';
+    import { onMount, onDestroy } from 'svelte';
+	import { debounce } from 'lodash-es';
 
-	let books: Book[] = [];
-	let error: string | null = null;
-	let currentPage: number = 1;
-	const limit: number = 18; // Number of items per page
-	let sort: 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language' = 'fileName';
-	let order: 'asc' | 'desc' = 'asc';
+    let books: Book[] = [];
+    let error: string | null = null;
+    let currentPage: number = 1;
+    const limit: number = 18; // Number of items per page
+    let sort: 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language' = 'fileName';
+    let order: 'asc' | 'desc' = 'asc';
     let totalItems: number = 0;
-	let totalPages: number = 1;
-	let isLoading: boolean = false;
-	let observer: IntersectionObserver;
-	let sentinel: HTMLElement;
+    let totalPages: number = 1;
+    let isLoading: boolean = false;
+    let observer: IntersectionObserver;
+    let sentinel: HTMLElement;
 
-	// Function to fetch books
-	async function fetchBooks() {
-		if (isLoading || currentPage > totalPages) return; // Prevent multiple requests
-		isLoading = true;
-		try {
-			const paginatedBooks: PaginatedBooks = await EpubService.getPaginatedEpubs(
-				currentPage,
-				limit,
-				sort,
-				order
-			);
-			books = [...books, ...paginatedBooks.books];
+    // New variables for search
+    let searchTerm: string = '';
+    let debouncedSearch: () => void;
+
+    // Function to fetch books
+    async function fetchBooks() {
+        if (isLoading || currentPage > totalPages) return; // Prevent multiple requests
+        isLoading = true;
+        try {
+            const paginatedBooks: PaginatedBooks = await EpubService.getPaginatedEpubs(
+                currentPage,
+                limit,
+                sort,
+                order,
+                searchTerm // Pass the search term
+            );
+            books = [...books, ...paginatedBooks.books];
             totalItems = paginatedBooks.totalItems;
-			totalPages = paginatedBooks.totalPages;
-			currentPage += 1;
-			error = null;
-		} catch (err) {
-			if (err instanceof Error) {
-				error = err.message;
-			} else {
-				error = 'An error occurred while fetching EPUB covers';
-			}
-		} finally {
-			isLoading = false;
-		}
-	}
+            totalPages = paginatedBooks.totalPages;
+            currentPage += 1;
+            error = null;
+        } catch (err) {
+            if (err instanceof Error) {
+                error = err.message;
+            } else {
+                error = 'An error occurred while fetching EPUB covers';
+            }
+        } finally {
+            isLoading = false;
+        }
+    }
 
-	// Intersection Observer callback
-	function handleIntersect(entries: IntersectionObserverEntry[]) {
-		if (entries[0].isIntersecting) {
-			fetchBooks();
-		}
-	}
+    // Intersection Observer callback
+    function handleIntersect(entries: IntersectionObserverEntry[]) {
+        if (entries[0].isIntersecting) {
+            fetchBooks();
+        }
+    }
 
-	onMount(() => {
-		fetchBooks(); // Initial fetch
+    onMount(() => {
+        fetchBooks(); // Initial fetch
 
-		// Initialize IntersectionObserver
-		observer = new IntersectionObserver(handleIntersect, {
-			root: null,
-			rootMargin: '0px',
-			threshold: 1.0
-		});
+        // Initialize IntersectionObserver
+        observer = new IntersectionObserver(handleIntersect, {
+            root: null,
+            rootMargin: '0px',
+            threshold: 1.0
+        });
 
-		if (sentinel) {
-			observer.observe(sentinel);
-		}
-	});
+        if (sentinel) {
+            observer.observe(sentinel);
+        }
 
-	onDestroy(() => {
-		if (observer && sentinel) {
-			observer.unobserve(sentinel);
-		}
-	});
+        // Initialize debounced search function
+        debouncedSearch = debounce(() => {
+            resetAndFetch();
+        }, 500); // 500ms debounce delay
+    });
 
-	// Handlers for sorting changes
-	async function handleSortChange(event: Event) {
-		const select = event.target as HTMLSelectElement;
-		sort = select.value as 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language';
-		resetAndFetch();
-	}
+    onDestroy(() => {
+        if (observer && sentinel) {
+            observer.unobserve(sentinel);
+        }
+    });
 
-	async function handleOrderChange(event: Event) {
-		const select = event.target as HTMLSelectElement;
-		order = select.value as 'asc' | 'desc';
-		resetAndFetch();
-	}
+    // Handlers for sorting changes
+    async function handleSortChange(event: Event) {
+        const select = event.target as HTMLSelectElement;
+        sort = select.value as 'fileName' | 'title' | 'author' | 'date' | 'publisher' | 'language';
+        resetAndFetch();
+    }
 
-	// Reset pagination and fetch data
-	async function resetAndFetch() {
-		books = [];
-		currentPage = 1;
-		totalPages = 1;
-		error = null;
-		await fetchBooks();
-	}
+    async function handleOrderChange(event: Event) {
+        const select = event.target as HTMLSelectElement;
+        order = select.value as 'asc' | 'desc';
+        resetAndFetch();
+    }
+
+    // New handler for search input
+    function handleSearchInput() {
+        debouncedSearch();
+    }
+
+    // Reset pagination and fetch data
+    async function resetAndFetch() {
+        books = [];
+        currentPage = 1;
+        totalPages = 1;
+        error = null;
+        await fetchBooks();
+    }
 </script>
 
 <Secured>
 	<header class="shadow">
-		<div class="flex w-full items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
-			<!-- Books Title -->
-			<h1 class="text-3xl font-bold tracking-tight text-gray-900">Books ({totalItems})</h1>
+        <div class="flex w-full items-center justify-between px-4 py-6 sm:px-6 lg:px-8">
+            <!-- Books Title -->
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900">Books ({totalItems})</h1>
 
-			<!-- Sorting Controls -->
-			<div class="flex space-x-4">
-				<!-- Sort By Dropdown -->
-				<div class="flex flex-col">
-					<select
-						id="sort"
-						bind:value={sort}
-						on:change={handleSortChange}
-						class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-					>
-						<option value="fileName">File Name</option>
-						<option value="title">Title</option>
-						<option value="author">Author</option>
-						<option value="date">Publication Date</option>
-						<option value="publisher">Publisher</option>
-						<option value="language">Language</option>
-					</select>
-				</div>
+            <!-- Search Bar -->
+            <div class="flex-1 max-w-lg mx-4">
+                <input
+                    type="text"
+                    bind:value={searchTerm}
+                    on:input={handleSearchInput}
+                    placeholder="Search books..."
+                    class="mt-1 w-full rounded-md border-gray-300 py-2 px-4 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                />
+            </div>
 
-				<!-- Order Dropdown -->
-				<div class="flex flex-col">
-					<select
-						id="order"
-						bind:value={order}
-						on:change={handleOrderChange}
-						class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
-					>
-						<option value="asc">Ascending</option>
-						<option value="desc">Descending</option>
-					</select>
-				</div>
-			</div>
-		</div>
-	</header>
-	<div class="border-t border-gray-100">
+            <!-- Sorting Controls -->
+            <div class="flex space-x-4">
+                <!-- Sort By Dropdown -->
+                <div class="flex flex-col">
+                    <select
+                        id="sort"
+                        bind:value={sort}
+                        on:change={handleSortChange}
+                        class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                    >
+                        <option value="fileName">File Name</option>
+                        <option value="title">Title</option>
+                        <option value="author">Author</option>
+                        <option value="date">Publication Date</option>
+                        <option value="publisher">Publisher</option>
+                        <option value="language">Language</option>
+                    </select>
+                </div>
+
+                <!-- Order Dropdown -->
+                <div class="flex flex-col">
+                    <select
+                        id="order"
+                        bind:value={order}
+                        on:change={handleOrderChange}
+                        class="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                    >
+                        <option value="asc">Ascending</option>
+                        <option value="desc">Descending</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+	<div class="bg-white border-t border-gray-100">
 		<div class="w-full px-4 py-4 sm:px-6 lg:px-8">
 			{#if error}
 				<p class="font-bold text-red-500">{error}</p>
 			{:else}
 				<!-- Books Grid -->
-				<div
-					class="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 xl:gap-x-8"
-				>
+				<div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 xl:gap-x-8">
 					{#each books as book (book.title)}
 						<div class="group relative">
-							<div
-								class="aspect-h-1 aspect-w-1 lg:aspect-none w-full overflow-hidden rounded-md bg-gray-200 group-hover:opacity-75"
-							>
+							<div class="aspect-h-1 aspect-w-1 aspect-none w-full overflow-hidden rounded-md bg-gray-200 group-hover:opacity-75">
 								{#if book.cover}
 									<img
 										src={book.cover}
 										alt={`Cover of ${book.title}`}
-										class="size-full object-cover object-center lg:size-full"
+										class="size-full object-cover object-center"
 									/>
 								{:else}
 									<div class="flex h-full items-center justify-center text-gray-500">
