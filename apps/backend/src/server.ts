@@ -9,6 +9,8 @@ import { setupDatabase } from './db/setup';
 import { seedAdmin } from './db/seed';
 import authenticationRoutes from './routes/authentication/authentication';
 import epubRoutes from './routes/books/epubs';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
 
 async function startServer() {
   const app: FastifyInstance = fastify();
@@ -52,6 +54,12 @@ async function startServer() {
         docExpansion: 'list',
         deepLinking: false,
       },
+    });
+
+    // Register fastify-static to serve EPUB files
+    app.register(fastifyStatic, {
+      root: path.join(__dirname, '../../../../../../epubs'), // Adjust the path as needed
+      prefix: '/epubs/files/',
     });
 
     // Register routes

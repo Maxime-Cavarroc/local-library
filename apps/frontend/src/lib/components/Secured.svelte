@@ -10,5 +10,7 @@
     });
 </script>
 
-<Header/>
-<slot />
+<div class="h-screen bg-white">
+    <Header/>
+    <slot />
+</div>

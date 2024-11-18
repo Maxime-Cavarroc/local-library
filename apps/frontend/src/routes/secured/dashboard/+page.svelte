@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
     import { EpubService } from '$lib/services/epubService';
 
-    let covers: Array<{ title: string; cover: string }> = [];
+    let covers: Array<{ fileName: string, title: string; cover: string }> = [];
     let error: string | null = null;
 
     onMount(async () => {
@@ -21,7 +21,12 @@
 </script>
 
 <Secured>
-	<div class="bg-white">
+	<header class="shadow">
+		<div class="w-full px-4 py-6 sm:px-6 lg:px-8">
+			<h1 class="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+		</div>
+	</header>
+	<div class="border-t border-gray-100">
 		<div class="w-full px-4 py-4 sm:px-6 lg:px-8">
 			{#if error}
 				<p class="text-red-500 font-bold">{error}</p>
@@ -39,7 +44,7 @@
 							<div class="mt-4 flex justify-between">
 								<div>
 									<h3 class="text-sm text-gray-700">
-										<a href="#">
+										<a href="/secured/book/{encodeURIComponent(cover.fileName)}">
 											<span aria-hidden="true" class="absolute inset-0"></span>
 											{cover.title}
 										</a>
