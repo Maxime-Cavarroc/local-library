@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { EpubService } from '$lib/services/epubService';
 	import Secured from '$lib/components/Secured.svelte';
-	import ePub from 'epubjs';
+	import ePub, { type Location } from 'epubjs';
 
 	let error: string | null = null;
 	let loading = true;
@@ -12,22 +12,30 @@
 	let rendition: any; // EPUB.js Rendition instance
 	let toc: Array<{ label: string; href: string }> = [];
 
+	// Page Tracking Variable
+	let progress = 0; // Percentage
+
 	// Extract the book title from the URL
 	let title: string = '';
 
 	onMount(async () => {
 		const params = $page.params as { title: string };
 		title = decodeURIComponent(params.title);
-
 		if (title) {
 			await initializeEpubReader(title);
 		}
+	});
 
-		// Attach keyboard event listeners
+	onMount(() => {
+		// Safely add event listeners
 		window.addEventListener('keydown', handleKeyDown);
-
-		// Attach fullscreen change event listener
 		document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+		return () => {
+			// Clean up listeners on component destroy
+			window.removeEventListener('keydown', handleKeyDown);
+			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+		};
 	});
 
 	async function initializeEpubReader(bookTitle: string) {
@@ -46,22 +54,28 @@
 			rendition = reader.renderTo('reader-container', {
 				width: '100%',
 				height: '100%',
-				spread: 'always'
+				spread: 'always',
+				allowScriptedContent: true
 			});
-
-			rendition.display();
 
 			// Fetch Table of Contents
 			rendition.on('rendered', () => {
-				const navigation = rendition.getNavigation();
+				const navigation = reader.navigation;
 				toc = navigation.toc;
 			});
 
-			// Optionally, listen to events for progress tracking
-			rendition.on('relocated', (location: any) => {
-				// Example: Update current location or progress
-				console.log('Current Location:', location.start.cfi);
+			// Listen to events for progress tracking using percentageFromCfi
+			rendition.on('relocated', (location: Location) => {
+				if (location && location.start && reader.locations) {
+					const cfi = location.start.cfi;
+					const percentage = reader.locations.percentageFromCfi(cfi);
+					progress = Math.min(Math.round(percentage * 100), 100);
+				}
 			});
+
+			// Now display the rendition
+			await rendition.display();
+			await reader.locations.generate(100);
 
 			loading = false;
 		} catch (err) {
@@ -79,12 +93,16 @@
 	function goNext() {
 		if (rendition) {
 			rendition.next();
+		} else {
+			console.error('Rendition is not initialized');
 		}
 	}
 
 	function goPrev() {
 		if (rendition) {
 			rendition.prev();
+		} else {
+			console.error('Rendition is not initialized');
 		}
 	}
 
@@ -113,14 +131,6 @@
 
 	// Keyboard Event Handler
 	function handleKeyDown(event: KeyboardEvent) {
-		// Check if focus is on an input or editable element to avoid conflicts
-		const tagName = (event.target as HTMLElement).tagName.toLowerCase();
-		const isEditable = (event.target as HTMLElement).isContentEditable;
-
-		if (tagName === 'input' || tagName === 'textarea' || isEditable) {
-			return; // Do not handle key events if typing in input fields
-		}
-
 		// Normalize key detection
 		const key = event.key || '';
 		const keyCode = event.keyCode || event.which;
@@ -135,12 +145,14 @@
 				goPrev();
 				break;
 			case key === 'Escape':
+				event.preventDefault();
 				if (fullscreen) {
 					toggleFullscreen();
 				}
 				break;
 			case key === 'F11' || keyCode === 122:
-                toggleFullscreen();
+				event.preventDefault();
+				toggleFullscreen();
 				break;
 			default:
 				break;
@@ -156,20 +168,28 @@
 		if (rendition) {
 			rendition.destroy();
 		}
-		// Remove keyboard event listeners
-		window.removeEventListener('keydown', handleKeyDown);
-		// Remove fullscreen change event listener
-		document.removeEventListener('fullscreenchange', handleFullscreenChange);
 	});
 </script>
 
 <Secured>
 	{#if !fullscreen}
 		<header class="flex items-center justify-between shadow">
-			<div class="w-full px-4 py-6 sm:px-6 lg:px-8">
+			<!-- Left: Book Title -->
+			<div class="px-4 py-6 sm:px-6 lg:px-8">
 				<h1 class="text-3xl font-bold tracking-tight text-gray-900">{title || 'Loading...'}</h1>
 			</div>
-			<!-- Navigation Controls -->
+
+			<!-- Center: Page Tracking -->
+			<div class="flex h-6 w-1/3 rounded items-center bg-gray-200 dark:bg-gray-700">
+				<div
+					class="flex h-6 items-center justify-center rounded bg-blue-600 text-center text-xs font-medium text-blue-100 dark:bg-blue-500"
+					style="width: {progress}%"
+				>
+					{progress}%
+				</div>
+			</div>
+
+			<!-- Right: Navigation Controls -->
 			<div class="flex space-x-2 px-4 py-6 sm:px-6 lg:px-8">
 				<button
 					on:click={goPrev}
@@ -194,7 +214,7 @@
 	{/if}
 	<div class="flex h-screen flex-1">
 		<!-- Table of Contents Sidebar -->
-		{#if toc.length > 0}
+		{#if toc.length > 0 && !fullscreen}
 			<aside class="w-1/4 overflow-y-auto bg-gray-100 p-4">
 				<h2 class="mb-4 text-xl font-semibold">Table of Contents</h2>
 				<ul>
