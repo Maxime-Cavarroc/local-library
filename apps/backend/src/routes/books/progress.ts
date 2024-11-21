@@ -79,7 +79,7 @@ export default async function progressRoutes(app: FastifyInstance) {
             schema: {
                 tags: ['Progress'],
                 description: 'Get reading progress for a specific book',
-                querystring: {
+                params: {
                     type: 'object',
                     required: ['book'],
                     properties: {

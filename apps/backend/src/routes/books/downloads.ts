@@ -68,7 +68,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
             schema: {
                 tags: ['Download'],
                 description: 'Check if a book has been downloaded by the authenticated user',
-                querystring: {
+                params: {
                     type: 'object',
                     required: ['book'],
                     properties: {

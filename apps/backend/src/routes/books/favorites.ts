@@ -122,14 +122,14 @@ export default async function favoriteRoutes(app: FastifyInstance) {
     /**
      * Check if a Book is Favorite
      */
-    app.get<{ Querystring: { book: string } }>(
+    app.get(
         '/:book/favorite',
         {
             preHandler: app.authenticate,
             schema: {
                 tags: ['Favorites'],
                 description: 'Check if a book is marked as favorite by the authenticated user',
-                querystring: {
+                params: {
                     type: 'object',
                     required: ['book'],
                     properties: {
