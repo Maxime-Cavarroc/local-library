@@ -12,6 +12,9 @@ import epubRoutes from './routes/books/epubs';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import llamaRoutes from './routes/model/llama';
+import downloadRoutes from './routes/books/downloads';
+import favoriteRoutes from './routes/books/favorites';
+import progressRoutes from './routes/books/progress';
 
 async function startServer() {
   const app: FastifyInstance = fastify();
@@ -67,6 +70,9 @@ async function startServer() {
     app.register(authenticationRoutes, { prefix: '/api' });
     app.register(epubRoutes, { prefix: '/api' });
     app.register(llamaRoutes, { prefix: '/api' });
+    app.register(downloadRoutes, { prefix: '/api/books' });
+    app.register(favoriteRoutes, { prefix: '/api/books' });
+    app.register(progressRoutes, { prefix: '/api/books' });
 
     // Base route
     app.get('/', async () => {

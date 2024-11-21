@@ -3,6 +3,7 @@ import path from 'path';
 import { findEpubByTitle, getAllEpubFiles, parseEpub, sortBooks } from '../../utils/epubUtils';
 import { Book } from '../../types/book';
 import { GetEpubsQuery, PaginatedBooks } from '../../types/pagination/paginatedBook';
+import { DownloadedService } from '../../db/services/downloads';
 
 export default async function epubRoutes(app: FastifyInstance) {
     const EPUB_DIR = path.join(__dirname, '../../../../../../epubs');
@@ -277,6 +278,7 @@ export default async function epubRoutes(app: FastifyInstance) {
         },
         async (request, reply) => {
             const { title } = request.params as { title: string };
+            const userId = request.user.id;
 
             try {
                 const matchedFile = await findEpubByTitle(title);
@@ -284,6 +286,9 @@ export default async function epubRoutes(app: FastifyInstance) {
                 if (!matchedFile) {
                     return reply.status(404).send({ error: 'Book not found' });
                 }
+
+                // Track the download in the database
+                await DownloadedService.addDownloaded(userId, title);
 
                 // Use Fastify's built-in `sendFile` method to handle the file download
                 // Ensure that the `fastify-static` plugin is registered in your server setup
